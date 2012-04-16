@@ -87,7 +87,7 @@ BOX.ajaxRequest = function(param1,param2,callback) {
 		data: message.parameters,
 		dataType: param1.type,
 		beforeSend : function (xhr){
-			xhr.setRequestHeader('Authorization', "BoxAuth api_key=" + BOX.apiKey + "enq1qlghaztxasq2lhv7pzivi279vq8v&auth_token=" + BOX.authToken);
+			xhr.setRequestHeader('Authorization', "BoxAuth api_key=" + BOX.apiKey + "&auth_token=" + BOX.authToken);
 		},
 		
 		success: function(data) {
