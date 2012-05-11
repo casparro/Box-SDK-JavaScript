@@ -1,28 +1,17 @@
 /*
- *  BOX.Javascript library v2.0                                               *
- *  Copyright Tony Casparro 2012                                              *
- *	                                                                          *
+ *  BOX SDK Javascript library v2.0                                           *
+ *  Copyright: Box, Inc 2012                                                  *
+ *  Author: Tony Casparro                                                     *
+ *                                                                            *
  *  Requires jQuery 1.4.10                                                    *
  *                                                                            */
 
 var BOX = {};
-	
+
 //Change to your own BOX.API keys
-BOX.base_url = "https://www.box.com/api/2.0/";
+BOX.base_url = "https://api.box.com/2.0/";
 BOX.apiKey = "";
 BOX.authToken = "";
-
-//Prefix for data storate - MUST be unique
-BOX.prefix = "boxapi_";
-
-//Change the below line to true to use HTML5 local storage instead of cookies
-BOX.authHTML5 = true;
-
-//Set to false to disable file metadata caching
-BOX.cache = true;
-
-//Set this to your authorization callback URL
-BOX.authCallback = "";
 
 //Maximum number of files to list from a directory. Default 10k
 BOX.fileLimit = 10000;
@@ -38,65 +27,58 @@ BOX.setup = function() {
 	//oauth goes here
 };
 
-
 //Function to send oauth requests
-BOX.ajaxRequest = function(param1,param2,callback) {
+BOX.ajaxRequest = function(params, ajax_params, callback) {
 
 	//If the token wasn't defined in the function call, then use the access token
-	if (!param1.token) {
-		param1.token = BOX.accessToken;
+	if (!params.token) {
+		params.token = BOX.accessToken;
 	}
-	if (!param1.tokenSecret) {
-		param1.tokenSecret = BOX.accessTokenSecret;
+	if (!params.tokenSecret) {
+		params.tokenSecret = BOX.accessTokenSecret;
 	}
-	
+
 	//If type isn't defined, it's JSON
-	if (!param1.type) {
-		param1.type = "json";
+	if (!params.type) {
+		params.type = "json";
 	}
-	
+
 	//If method isn't defined, assume it's GET
-	if (!param1.method) {
-		param1.method = "GET";
+	if (!params.method) {
+		params.method = "GET";
 	}
-	
+
 	//Define the accessor
 	var accessor = {
 		consumerSecret: BOX.auth_token
 	};
-	
+
 	//Outline the message
 	var message = {
-		action: param1.url,
-	    method: param1.method,
-	    parameters: [
-	      	["api_key", BOX.apiKey]
-	  	]
+		action: params.url,
+	    method: params.method,
+	    parameters: {}
 	};
-	
-	//If given, append request-specific parameters to the OAuth request
-	for (var i in param2) {
-		message.parameters.push(param2[i]);
-	}
 
-	
+	//If given, append request-specific parameters
+	$.extend(message.parameters, ajax_params);
+
+
 	//Post the OAuth request
 	$.ajax({
 		url: message.action,
 		type: message.method,
-		data: message.parameters,
-		dataType: param1.type,
+		data: JSON.stringify(message.parameters),
+		dataType: params.type,
 		beforeSend : function (xhr){
 			xhr.setRequestHeader('Authorization', "BoxAuth api_key=" + BOX.apiKey + "&auth_token=" + BOX.authToken);
 		},
-		
+
 		success: function(data) {
-			//OAuth request successful - run callback
 			callback(data);
 		},
-		
+
 		error: function(a,b,c) {
-			//Something went wrong. Feel free to add a better error message if you want
 			console.log("error");
 		}
 	});
@@ -105,7 +87,7 @@ BOX.ajaxRequest = function(param1,param2,callback) {
 //Get the resource name for a given object type
 BOX.getResourceName = function(type)
 {
-	var resource_name = '';
+	var resource_name = false;
 	switch(type)
 	{
 		case 'file':
@@ -116,7 +98,7 @@ BOX.getResourceName = function(type)
 			break;
 	}
 
-	if (!resource_name) return false;
+	return resource_name;
 };
 
 
@@ -136,7 +118,7 @@ BOX.getItemMetadata = function(item_type, item_id, callback) {
 };
 
 //Function to update an item metadata
-BOX.updateItem = function(item_type, item_id, name, description, callback) {
+BOX.updateItem = function(item_type, item_id, name, callback) {
 
 	if (!BOX.getResourceName(item_type) || !item_id) return false;
 
@@ -144,7 +126,7 @@ BOX.updateItem = function(item_type, item_id, name, description, callback) {
 		url: BOX.base_url + BOX.getResourceName(item_type) + "/" + item_id,
 		type: "text",
 		method: "PUT"
-	}, [["name",name,"description",description]], function(data) {
+	}, {name: name}, function(data) {
 		callback(data);
 	});
 };
@@ -157,18 +139,18 @@ BOX.deleteItem = function(item_type, item_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + BOX.getResourceName(item_type) + "/" + item_id,
 		method: "DELETE"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
 
 //Function to upload a file
-BOX.uploadFile = function(path, file, callback) {
+BOX.uploadFile = function(file, folder_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/data",
 		type: "text",
 		method: "POST"
-	}, [["file",file, "path": path]], function(data) {
+	}, {"file": file, "folder_id": folder_id}, function(data) {
 		callback(data);
 	});
 };
@@ -178,7 +160,7 @@ BOX.downloadFile = function(file_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "/data",
 		type: "text"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -186,10 +168,10 @@ BOX.downloadFile = function(file_id, callback) {
 //Function to upload a new version of a file
 BOX.uploadNewFileVersion = function(file_id, file) {
 	BOX.ajaxRequest({
-		url: BOX.base_url + "files/" + item_id + "/data",
+		url: BOX.base_url + "files/" + file_id + "/data",
 		type: "text",
 		method: "POST"
-	}, [["file",file]], function(data) {
+	}, {"file": file}, function(data) {
 		callback(data);
 	});
 };
@@ -199,7 +181,7 @@ BOX.getFileVersions = function(file_id, callback) {
 
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "/versions"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -209,7 +191,7 @@ BOX.getFileVersionMetadata = function(file_id, version_id, callback) {
 
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "?version=" + version_id
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -220,7 +202,7 @@ BOX.deleteFileVersion = function(file_id, version_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "/versions/" + version_id,
 		method: "DELETE"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -230,7 +212,7 @@ BOX.downloadFileVersion = function(file_id, version_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "/versions/" + version_id,
 		type: "text"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -239,7 +221,7 @@ BOX.downloadFileVersion = function(file_id, version_id, callback) {
 BOX.getFileComments = function(file_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "files/" + file_id + "/comments"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -249,7 +231,7 @@ BOX.createFolder = function(name, parent_folder_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "folders/" + parent_folder_id,
 		method: "POST"
-	}, [["name", name]], function(data) {
+	}, {"name": name}, function(data) {
 		callback(data);
 	});
 };
@@ -261,7 +243,7 @@ BOX.addFileComment = function(file_id, message, callback) {
 		url: BOX.base_url + "files/" + file_id + "/comments",
 		type: "text",
 		method: "POST"
-	}, [["message",message]], function(data) {
+	}, {"message": message}, function(data) {
 		callback(data);
 	});
 };
@@ -272,7 +254,7 @@ BOX.updateFileComment = function(comment_id, message, callback) {
 		url: BOX.base_url + "comments/" + comment_id,
 		type: "text",
 		method: "PUT"
-	}, [["message",message]], function(data) {
+	}, {"message": message}, function(data) {
 		callback(data);
 	});
 };
@@ -281,7 +263,7 @@ BOX.updateFileComment = function(comment_id, message, callback) {
 BOX.getFileComment = function(comment_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "comments/" + comment_id
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -291,7 +273,7 @@ BOX.deleteFileComment = function(comment_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "comments/" + comment_id,
 		method: "DELETE"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -302,7 +284,7 @@ BOX.addDiscussion = function(folder_id, name, description, callback) {
 		url: BOX.base_url + "folders/" + folder_id + "/discussions",
 		type: "text",
 		method: "POST"
-	}, [["name",name,"description",description]], function(data) {
+	}, {"name": name, "description": description}, function(data) {
 		callback(data);
 	});
 };
@@ -313,7 +295,7 @@ BOX.updateFileComment = function(discussion_id, name, description, callback) {
 		url: BOX.base_url + "discussions/" + discussion_id,
 		type: "text",
 		method: "PUT"
-	}, [["name",name,"description",description]], function(data) {
+	}, {"name": name, "description": description}, function(data) {
 		callback(data);
 	});
 };
@@ -322,7 +304,7 @@ BOX.updateFileComment = function(discussion_id, name, description, callback) {
 BOX.getDiscussion = function(discussion_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "discussions/" + discussion_id
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -332,7 +314,7 @@ BOX.deleteDiscussion = function(discussion_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "discussions/" + discussion_id,
 		method: "DELETE"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -341,7 +323,7 @@ BOX.deleteDiscussion = function(discussion_id, callback) {
 BOX.getFolderDiscussions = function(folder_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "folders/" + folder_id + "/discussions"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -352,7 +334,7 @@ BOX.addDiscussionComment = function(discussion_id, message, callback) {
 		url: BOX.base_url + "discussions/" + discussion_id + "/comments",
 		type: "text",
 		method: "POST"
-	}, [["message",message]], function(data) {
+	}, {"message": message}, function(data) {
 		callback(data);
 	});
 };
@@ -361,7 +343,7 @@ BOX.addDiscussionComment = function(discussion_id, message, callback) {
 BOX.getDiscussionComments = function(discussion_id, callback) {
 	BOX.ajaxRequest({
 		url: BOX.base_url + "discussions/" + discussion_id + "/comments"
-	}, [], function(data) {
+	}, {}, function(data) {
 		callback(data);
 	});
 };
@@ -375,7 +357,7 @@ BOX.getEvents = function(params, callback) {
 
 	BOX.ajaxRequest({
 		url: BOX.base_url + "events/"
-	}, [["stream_position",params.stream_position, "stream_type",params.stream_type, "limit",params.limit]], function(data) {
+	}, {"stream_position": params.stream_position, "stream_type":params.stream_type, "limit": params.limit}, function(data) {
 		callback(data);
 	});
 };
